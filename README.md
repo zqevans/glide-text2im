@@ -4,6 +4,8 @@ This is the official codebase for running the small, filtered-data GLIDE model f
 
 For details on the pre-trained models in this repository, see the [Model Card](model-card.md).
 
+[PRK and PLMS sampling methods](https://openreview.net/forum?id=PlKWVd2yBkY) added by Katherine Crowson. Note that PRK and PLMS do not yet support guided sampling, they skip the first and the last timestep, there is not yet a PLMS optimized analogue of the `'fast27'` schedule, and there may be other bugs.
+
 # Usage
 
 To install this package, clone this repository and then run:

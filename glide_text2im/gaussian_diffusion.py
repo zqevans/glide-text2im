@@ -628,11 +628,16 @@ class GaussianDiffusion:
         x,
         t,
         model_kwargs,
+        cond_fn=None,
     ):
         model_output = model(x, t, **model_kwargs)
         if isinstance(model_output, tuple):
             model_output, _ = model_output
-        return model_output[:, :3]
+        eps = model_output[:, :3]
+        if cond_fn is not None:
+            alpha_bar = _extract_into_tensor_lerp(self.alphas_cumprod, t, x.shape)
+            eps = eps - th.sqrt(1 - alpha_bar) * cond_fn(x, t, **model_kwargs)
+        return eps
 
     def eps_to_pred_xstart(
         self,
@@ -670,8 +675,6 @@ class GaussianDiffusion:
 
         Same usage as p_sample().
         """
-        if cond_fn is not None:
-            raise RuntimeError('cond_fn is not supported yet with PRK/PLMS.')
         if model_kwargs is None:
             model_kwargs = {}
 
@@ -684,13 +687,13 @@ class GaussianDiffusion:
 
         t_mid = t.float() - 0.5
         t_prev = t - 1
-        eps_1 = self.get_eps(model, x, t, model_kwargs)
+        eps_1 = self.get_eps(model, x, t, model_kwargs, cond_fn)
         x_1 = self.pndm_transfer(x, eps_1, t, t_mid)
-        eps_2 = self.get_eps(model, x_1, t_mid, model_kwargs)
+        eps_2 = self.get_eps(model, x_1, t_mid, model_kwargs, cond_fn)
         x_2 = self.pndm_transfer(x, eps_2, t, t_mid)
-        eps_3 = self.get_eps(model, x_2, t_mid, model_kwargs)
+        eps_3 = self.get_eps(model, x_2, t_mid, model_kwargs, cond_fn)
         x_3 = self.pndm_transfer(x, eps_3, t, t_prev)
-        eps_4 = self.get_eps(model, x_3, t_prev, model_kwargs)
+        eps_4 = self.get_eps(model, x_3, t_prev, model_kwargs, cond_fn)
         eps_prime = (eps_1 + 2 * eps_2 + 2 * eps_3 + eps_4) / 6
 
         sample = self.pndm_transfer(x, eps_prime, t, t_prev)
@@ -793,8 +796,6 @@ class GaussianDiffusion:
         Sample x_{t-1} from the model using fourth-order Pseudo Linear Multistep
         (https://openreview.net/forum?id=PlKWVd2yBkY).
         """
-        if cond_fn is not None:
-            raise RuntimeError('cond_fn is not supported yet with PRK/PLMS.')
         if model_kwargs is None:
             model_kwargs = {}
 
@@ -805,7 +806,7 @@ class GaussianDiffusion:
                 return x.clamp(-1, 1)
             return x
 
-        eps = self.get_eps(model, x, t, model_kwargs)
+        eps = self.get_eps(model, x, t, model_kwargs, cond_fn)
         eps_prime = (55 * eps - 59 * old_eps[-1] + 37 * old_eps[-2] - 9 * old_eps[-3]) / 24
 
         sample = self.pndm_transfer(x, eps_prime, t, t - 1)

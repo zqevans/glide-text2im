@@ -825,6 +825,8 @@ class GaussianDiffusion:
         model_kwargs=None,
         device=None,
         progress=False,
+        skip_timesteps=0,
+        init_image=None,
     ):
         """
         Use PLMS to sample from the model and yield intermediate samples from
@@ -839,7 +841,15 @@ class GaussianDiffusion:
             img = noise
         else:
             img = th.randn(*shape, device=device)
-        indices = list(range(self.num_timesteps))[::-1][1:-1]
+        
+        if skip_timesteps and init_image is None:
+            init_image = th.zeros_like(img)
+
+        indices = list(range(self.num_timesteps - skip_timesteps))[::-1][1:1]
+
+        if init_image is not None:
+            my_t = th.ones([shape[0]], device=device, dtype=th.long) * indices[0]
+            img = self.q_sample(init_image, my_t, img)
 
         if progress:
             # Lazy import so that we don't depend on tqdm.
@@ -889,6 +899,8 @@ class GaussianDiffusion:
         model_kwargs=None,
         device=None,
         progress=False,
+        skip_timesteps=0,
+        init_image=None,
     ):
         """
         Generate samples from the model using PLMS.
@@ -906,6 +918,8 @@ class GaussianDiffusion:
             model_kwargs=model_kwargs,
             device=device,
             progress=progress,
+            skip_timesteps=skip_timesteps,
+            init_image=init_image,
         ):
             final = sample
         return final["sample"]
